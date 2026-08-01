@@ -1,15 +1,22 @@
-from fastapi import APIRouter, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, HTTPException, UploadFile, File, Request, Depends
 from pydantic import BaseModel
 import smtplib
 from email.message import EmailMessage
 import pandas as pd
 import io
 import re
+import time
+import logging
+from ..core.security import get_api_key
+from ..core.rate_limit import limiter
 
-router = APIRouter()
+logger = logging.getLogger(__name__)
+
+router = APIRouter(dependencies=[Depends(get_api_key)])
 
 @router.post("/parse-csv")
-async def parse_csv(file: UploadFile = File(...)):
+@limiter.limit("20/minute")
+async def parse_csv(request: Request, file: UploadFile = File(...)):
     content = await file.read()
     try:
         if file.filename.endswith('.csv'):
@@ -32,6 +39,7 @@ async def parse_csv(file: UploadFile = File(...)):
             "filename": file.filename
         }
     except Exception as e:
+        logger.error(f"File parsing failed: {e}")
         raise HTTPException(status_code=400, detail=f"Failed to parse file: {str(e)}")
 
 
@@ -47,7 +55,8 @@ from fastapi.responses import StreamingResponse
 import json
 
 @router.post("/send")
-async def send_emails(payload: SendEmailRequest):
+@limiter.limit("5/minute")
+async def send_emails(request: Request, payload: SendEmailRequest):
     def email_generator():
         try:
             # Clean credentials (Google app passwords often get copied with non-breaking spaces)
@@ -58,6 +67,7 @@ async def send_emails(payload: SendEmailRequest):
             server.starttls()
             server.login(clean_email, clean_password)
         except Exception as e:
+            logger.error(f"Gmail authentication failed for {payload.gmail_email}: {e}")
             yield json.dumps({"error": f"Failed to authenticate with Gmail: {str(e)}"}) + "\n"
             return
 
@@ -83,9 +93,14 @@ async def send_emails(payload: SendEmailRequest):
 
             try:
                 server.send_message(msg)
+                logger.info(f"Email sent successfully to {target_email}")
                 yield json.dumps({"email": target_email, "status": "success"}) + "\n"
             except Exception as e:
+                logger.error(f"Failed to send email to {target_email}: {e}")
                 yield json.dumps({"email": target_email, "status": "failed", "error": str(e)}) + "\n"
+            
+            # Simple delay to avoid tripping spam filters too quickly
+            time.sleep(1)
 
         server.quit()
 

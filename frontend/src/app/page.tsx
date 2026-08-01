@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { UploadCloud, AlertCircle, CheckCircle2, Loader2, Send } from "lucide-react";
+import { UploadCloud, AlertCircle, CheckCircle2, Loader2, Send, Eye, EyeOff } from "lucide-react";
 
 export default function MailSenderWizard() {
   const [step, setStep] = useState(1);
@@ -15,6 +15,7 @@ export default function MailSenderWizard() {
   // Form State
   const [gmailEmail, setGmailEmail] = useState("");
   const [appPassword, setAppPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
   const [emailColumn, setEmailColumn] = useState("");
@@ -38,8 +39,14 @@ export default function MailSenderWizard() {
     formData.append("file", file);
 
     try {
-      const res = await fetch("http://localhost:8000/api/sender/parse-csv", {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+      const apiKey = process.env.NEXT_PUBLIC_API_KEY || "";
+
+      const res = await fetch(`${apiUrl}/api/sender/parse-csv`, {
         method: "POST",
+        headers: {
+            "X-API-Key": apiKey
+        },
         body: formData,
       });
       const data = await res.json();
@@ -80,9 +87,15 @@ export default function MailSenderWizard() {
         email_column: emailColumn
       };
       
-      const res = await fetch("http://localhost:8000/api/sender/send", {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+      const apiKey = process.env.NEXT_PUBLIC_API_KEY || "";
+      
+      const res = await fetch(`${apiUrl}/api/sender/send`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+            "Content-Type": "application/json",
+            "X-API-Key": apiKey
+        },
         body: JSON.stringify(payload)
       });
       
@@ -163,7 +176,23 @@ export default function MailSenderWizard() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">App Password</Label>
-              <Input id="password" type="password" placeholder="16-character app password" value={appPassword} onChange={e => setAppPassword(e.target.value.replace(/[\\s\\xa0]/g, ''))} />
+              <div className="relative">
+                <Input 
+                  id="password" 
+                  type={showPassword ? "text" : "password"} 
+                  placeholder="16-character app password" 
+                  value={appPassword} 
+                  onChange={e => setAppPassword(e.target.value.replace(/[\s\xa0]/g, ''))} 
+                  className="pr-10" 
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none"
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
               <p className="text-xs text-gray-500">You must use a Google App Password, not your regular login password. <a href="https://myaccount.google.com/apppasswords" target="_blank" className="text-blue-500 hover:underline">Get one here</a>.</p>
             </div>
           </CardContent>
