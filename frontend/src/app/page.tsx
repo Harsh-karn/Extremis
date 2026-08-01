@@ -50,9 +50,9 @@ export default function MailSenderWizard() {
       setAllRecords(data.all_rows);
       setTotalRows(data.total_rows);
       
-      // Auto-guess email column
-      const guessedEmail = data.columns.find((c: string) => c.toLowerCase().includes("email"));
-      if (guessedEmail) setEmailColumn(guessedEmail);
+      // Auto-guess email column safely handling non-string column names
+      const guessedEmail = data.columns.find((c: any) => String(c).toLowerCase().includes("email"));
+      if (guessedEmail) setEmailColumn(String(guessedEmail));
       
     } catch (err: any) {
       alert(err.message);
@@ -86,10 +86,37 @@ export default function MailSenderWizard() {
         body: JSON.stringify(payload)
       });
       
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || "Failed to send emails");
+      if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data.detail || "Failed to send emails");
+      }
+
+      const reader = res.body?.getReader();
+      if (!reader) throw new Error("Stream not available");
       
-      setResults(data.results);
+      const decoder = new TextDecoder();
+      
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split('\\n').filter(line => line.trim());
+        
+        for (const line of lines) {
+            try {
+                const data = JSON.parse(line);
+                if (data.error && !data.email) {
+                    throw new Error(data.error);
+                }
+                setResults(prev => [...prev, data]);
+            } catch (e: any) {
+                if (e.message !== "Unexpected end of JSON input") {
+                    throw e; // If it's the auth error, throw it. 
+                }
+            }
+        }
+      }
       setStep(4);
     } catch (err: any) {
       alert(err.message);
@@ -136,7 +163,7 @@ export default function MailSenderWizard() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">App Password</Label>
-              <Input id="password" type="password" placeholder="16-character app password" value={appPassword} onChange={e => setAppPassword(e.target.value)} />
+              <Input id="password" type="password" placeholder="16-character app password" value={appPassword} onChange={e => setAppPassword(e.target.value.replace(/[\\s\\xa0]/g, ''))} />
               <p className="text-xs text-gray-500">You must use a Google App Password, not your regular login password. <a href="https://myaccount.google.com/apppasswords" target="_blank" className="text-blue-500 hover:underline">Get one here</a>.</p>
             </div>
           </CardContent>
@@ -264,14 +291,20 @@ export default function MailSenderWizard() {
           </CardContent>
           <CardFooter className="flex justify-between items-center">
             <Button variant="outline" onClick={() => setStep(2)}>Back</Button>
-            
-            <Button onClick={handleSend} disabled={!subject || !body || isSending} className="min-w-[150px]">
-              {isSending ? (
-                <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Sending...</>
-              ) : (
-                <><Send className="mr-2 h-4 w-4" /> Start Sending</>
+            <div className="flex items-center gap-4">
+              {isSending && (
+                <div className="text-sm font-medium text-blue-600 bg-blue-50 px-3 py-1.5 rounded-full border border-blue-100">
+                  Sent {results.length} / {totalRows}
+                </div>
               )}
-            </Button>
+              <Button onClick={handleSend} disabled={!subject || !body || isSending} className="min-w-[150px]">
+                {isSending ? (
+                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Sending...</>
+                ) : (
+                  <><Send className="mr-2 h-4 w-4" /> Start Sending</>
+                )}
+              </Button>
+            </div>
           </CardFooter>
         </Card>
       )}
