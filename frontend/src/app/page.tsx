@@ -1,126 +1,323 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Send, Users, CheckCircle, AlertTriangle } from "lucide-react";
-import Link from "next/link";
+"use client";
 
-export const dynamic = 'force-dynamic';
+import { useState } from "react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Rocket, UploadCloud, AlertCircle, CheckCircle2, Loader2, Send } from "lucide-react";
 
-async function getStats() {
-  try {
-    const res = await fetch("http://127.0.0.1:8000/api/stats", { cache: 'no-store' });
-    if (!res.ok) throw new Error("Failed to fetch stats");
-    return res.json();
-  } catch (error) {
-    console.error(error);
-    return {
-      total_campaigns: 0,
-      total_recipients: 0,
-      delivery_rate: 0,
-      total_failed: 0,
-      recent_campaigns: []
-    };
-  }
-}
+export default function MailSenderWizard() {
+  const [step, setStep] = useState(1);
+  const [loading, setLoading] = useState(false);
 
-export default async function Dashboard() {
-  const stats = await getStats();
+  // Form State
+  const [gmailEmail, setGmailEmail] = useState("");
+  const [appPassword, setAppPassword] = useState("");
+  const [subject, setSubject] = useState("");
+  const [body, setBody] = useState("");
+  const [emailColumn, setEmailColumn] = useState("");
+  
+  // Data State
+  const [columns, setColumns] = useState<string[]>([]);
+  const [preview, setPreview] = useState<any[]>([]);
+  const [allRecords, setAllRecords] = useState<any[]>([]);
+  const [totalRows, setTotalRows] = useState(0);
+  
+  // Results State
+  const [results, setResults] = useState<any[]>([]);
+  const [isSending, setIsSending] = useState(false);
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+    const file = e.target.files[0];
+    
+    setLoading(true);
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const res = await fetch("http://localhost:8000/api/sender/parse-csv", {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Failed to upload file");
+      
+      setColumns(data.columns);
+      setPreview(data.preview);
+      setAllRecords(data.all_rows);
+      setTotalRows(data.total_rows);
+      
+      // Auto-guess email column
+      const guessedEmail = data.columns.find((c: string) => c.toLowerCase().includes("email"));
+      if (guessedEmail) setEmailColumn(guessedEmail);
+      
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSend = async () => {
+    if (!gmailEmail || !appPassword || !emailColumn || !subject || !body || preview.length === 0) {
+      alert("Please fill out all fields.");
+      return;
+    }
+    
+    setIsSending(true);
+    setResults([]);
+    
+    try {
+      const payload = {
+        gmail_email: gmailEmail,
+        gmail_app_password: appPassword,
+        subject_template: subject,
+        body_template: body,
+        recipients: allRecords, // Sending all records
+        email_column: emailColumn
+      };
+      
+      const res = await fetch("http://localhost:8000/api/sender/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Failed to send emails");
+      
+      setResults(data.results);
+      setStep(4);
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setIsSending(false);
+    }
+  };
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-        <p className="text-muted-foreground">
-          Overview of your MailForge campaigns and metrics.
-        </p>
+    <div className="max-w-3xl mx-auto space-y-8">
+      <div className="text-center space-y-2">
+        <h1 className="text-4xl font-bold tracking-tight text-gray-900 flex justify-center items-center gap-3">
+          <Rocket className="h-8 w-8 text-blue-600" />
+          MailForge
+        </h1>
+        <p className="text-gray-500">Send personalized bulk emails directly from your Gmail.</p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Campaigns</CardTitle>
-            <Send className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.total_campaigns}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Recipients</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.total_recipients}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Delivery Rate</CardTitle>
-            <CheckCircle className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.delivery_rate}%</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Bounces/Failed</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.total_failed}</div>
-          </CardContent>
-        </Card>
+      {/* Progress Steps */}
+      <div className="flex justify-between items-center px-8 text-sm font-medium mb-8">
+        {[1, 2, 3, 4].map((s) => (
+          <div key={s} className="flex items-center">
+            <div className={`h-8 w-8 rounded-full flex items-center justify-center border-2 ${
+              step >= s ? "border-blue-600 bg-blue-600 text-white" : "border-gray-300 text-gray-400"
+            }`}>
+              {s}
+            </div>
+            {s < 4 && <div className={`w-24 h-1 mx-2 rounded ${step > s ? "bg-blue-600" : "bg-gray-200"}`} />}
+          </div>
+        ))}
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-        <Card className="col-span-4">
+      {/* Step 1: Credentials */}
+      {step === 1 && (
+        <Card className="animate-in fade-in slide-in-from-bottom-4">
           <CardHeader>
-            <CardTitle>Recent Campaigns</CardTitle>
-            <CardDescription>
-              Your latest campaigns.
-            </CardDescription>
+            <CardTitle>1. Connect Gmail</CardTitle>
+            <CardDescription>Enter your Gmail address and App Password. Your credentials are only used to send this specific batch and are not saved anywhere.</CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {stats.recent_campaigns.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No recent campaigns.</p>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="email">Gmail Address</Label>
+              <Input id="email" type="email" placeholder="you@gmail.com" value={gmailEmail} onChange={e => setGmailEmail(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="password">App Password</Label>
+              <Input id="password" type="password" placeholder="16-character app password" value={appPassword} onChange={e => setAppPassword(e.target.value)} />
+              <p className="text-xs text-gray-500">You must use a Google App Password, not your regular login password. <a href="https://myaccount.google.com/apppasswords" target="_blank" className="text-blue-500 hover:underline">Get one here</a>.</p>
+            </div>
+          </CardContent>
+          <CardFooter className="flex justify-end">
+            <Button onClick={() => setStep(2)} disabled={!gmailEmail || !appPassword}>Next Step</Button>
+          </CardFooter>
+        </Card>
+      )}
+
+      {/* Step 2: Audience */}
+      {step === 2 && (
+        <Card className="animate-in fade-in slide-in-from-bottom-4">
+          <CardHeader>
+            <CardTitle>2. Upload Audience</CardTitle>
+            <CardDescription>Upload an Excel or CSV file containing your recipients.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="border-2 border-dashed border-gray-200 rounded-lg p-10 flex flex-col items-center justify-center bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer relative">
+              <input type="file" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" accept=".csv,.xlsx,.xls" onChange={handleFileUpload} />
+              {loading ? (
+                <Loader2 className="h-10 w-10 text-gray-400 animate-spin mb-4" />
               ) : (
-                stats.recent_campaigns.map((campaign: any) => (
-                  <div key={campaign.id} className="flex items-center">
-                    <div className="ml-4 space-y-1">
-                      <p className="text-sm font-medium leading-none">{campaign.name}</p>
-                      <p className="text-sm text-muted-foreground">
-                        Sent to {campaign.recipient_count} recipients
-                      </p>
-                    </div>
-                    <div className="ml-auto font-medium capitalize">
-                      {campaign.status}
-                    </div>
+                <UploadCloud className="h-10 w-10 text-gray-400 mb-4" />
+              )}
+              <h3 className="text-sm font-semibold text-gray-900">Click or drag file to upload</h3>
+              <p className="text-xs text-gray-500 mt-1">CSV, XLS, or XLSX up to 5MB</p>
+            </div>
+
+            {columns.length > 0 && (
+              <div className="space-y-4 bg-green-50/50 p-4 rounded-lg border border-green-100">
+                <div className="flex items-center gap-2 text-green-700">
+                  <CheckCircle2 className="h-5 w-5" />
+                  <span className="font-medium">File loaded successfully</span>
+                  <span className="text-sm ml-auto">{totalRows} rows found</span>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label>Which column contains the email address?</Label>
+                  <select 
+                    className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    value={emailColumn}
+                    onChange={(e) => setEmailColumn(e.target.value)}
+                  >
+                    <option value="">Select a column...</option>
+                    {columns.map(col => (
+                      <option key={col} value={col}>{col}</option>
+                    ))}
+                  </select>
+                </div>
+                
+                <div className="mt-4">
+                  <Label className="text-xs text-gray-500 uppercase tracking-wider mb-2 block">Available Columns (Variables)</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {columns.map(col => (
+                      <span key={col} className="px-2 py-1 bg-white border border-gray-200 rounded text-xs font-mono">
+                        {`{{${col}}}`}
+                      </span>
+                    ))}
                   </div>
-                ))
+                </div>
+              </div>
+            )}
+          </CardContent>
+          <CardFooter className="flex justify-between">
+            <Button variant="outline" onClick={() => setStep(1)}>Back</Button>
+            <Button onClick={() => setStep(3)} disabled={columns.length === 0 || !emailColumn}>Next Step</Button>
+          </CardFooter>
+        </Card>
+      )}
+
+      {/* Step 3: Compose Email */}
+      {step === 3 && (
+        <Card className="animate-in fade-in slide-in-from-bottom-4">
+          <CardHeader>
+            <CardTitle>3. Compose Email</CardTitle>
+            <CardDescription>Write your message. Use the variables shown below to personalize each email.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label>Available Variables</Label>
+              <div className="flex flex-wrap gap-2 mb-4">
+                {columns.map(col => (
+                  <button 
+                    key={col} 
+                    className="px-2 py-1 bg-gray-100 hover:bg-gray-200 border border-gray-200 rounded text-xs font-mono cursor-copy transition-colors"
+                    onClick={() => navigator.clipboard.writeText(`{{${col}}}`)}
+                  >
+                    {`{{${col}}}`}
+                  </button>
+                ))}
+                <span className="text-xs text-gray-500 italic ml-2 mt-1">(Click to copy)</span>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="subject">Subject</Label>
+              <Input id="subject" placeholder="Hello {{Name}}" value={subject} onChange={e => setSubject(e.target.value)} />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="body">Body</Label>
+              <Textarea 
+                id="body" 
+                placeholder="Hi {{Name}},&#10;&#10;I noticed you work at {{Company}}. I'd love to chat!"
+                rows={10} 
+                value={body} 
+                onChange={e => setBody(e.target.value)} 
+                className="resize-y"
+              />
+            </div>
+            
+            <div className="bg-blue-50 p-4 rounded-lg border border-blue-100 mt-4">
+              <h4 className="text-sm font-semibold text-blue-900 mb-2">Preview (Row 1)</h4>
+              {preview.length > 0 && (
+                <div className="text-sm text-blue-800 bg-white p-3 rounded border border-blue-100 whitespace-pre-wrap">
+                  <div className="font-medium border-b border-blue-100 pb-2 mb-2">
+                    Subject: {columns.reduce((s, col) => s.replace(new RegExp(`\\{\\{\\s*${col}\\s*\\}\\}`, 'gi'), preview[0][col]), subject || "Subject")}
+                  </div>
+                  <div>
+                    {columns.reduce((s, col) => s.replace(new RegExp(`\\{\\{\\s*${col}\\s*\\}\\}`, 'gi'), preview[0][col]), body || "Body content...")}
+                  </div>
+                </div>
               )}
             </div>
           </CardContent>
+          <CardFooter className="flex justify-between items-center">
+            <Button variant="outline" onClick={() => setStep(2)}>Back</Button>
+            
+            <Button onClick={handleSend} disabled={!subject || !body || isSending} className="min-w-[150px]">
+              {isSending ? (
+                <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Sending...</>
+              ) : (
+                <><Send className="mr-2 h-4 w-4" /> Start Sending</>
+              )}
+            </Button>
+          </CardFooter>
         </Card>
-        <Card className="col-span-3">
+      )}
+
+      {/* Step 4: Results */}
+      {step === 4 && (
+        <Card className="animate-in fade-in slide-in-from-bottom-4">
           <CardHeader>
-            <CardTitle>Quick Actions</CardTitle>
-            <CardDescription>
-              Start sending emails quickly
-            </CardDescription>
+            <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center mb-4">
+              <CheckCircle2 className="h-6 w-6 text-green-600" />
+            </div>
+            <CardTitle>Sending Complete</CardTitle>
+            <CardDescription>Your emails have been processed.</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-2">
-            <button className="w-full justify-start text-left bg-secondary p-3 rounded-md hover:bg-secondary/80 transition-colors">
-              <span className="font-semibold block">New Campaign</span>
-              <span className="text-sm text-muted-foreground">Create and schedule a new blast.</span>
-            </button>
-            <button className="w-full justify-start text-left bg-secondary p-3 rounded-md hover:bg-secondary/80 transition-colors">
-              <span className="font-semibold block">Upload Recipients</span>
-              <span className="text-sm text-muted-foreground">Import a new CSV or Excel list.</span>
-            </button>
+          <CardContent>
+            <div className="space-y-3">
+              <div className="flex justify-between text-sm font-medium border-b pb-2">
+                <span>Email</span>
+                <span>Status</span>
+              </div>
+              <div className="max-h-[300px] overflow-y-auto space-y-2 pr-2">
+                {results.map((res, i) => (
+                  <div key={i} className="flex justify-between text-sm items-center py-1">
+                    <span className="truncate max-w-[250px]">{res.email}</span>
+                    <div className="flex items-center gap-2">
+                      {res.status === 'success' ? (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">Sent</span>
+                      ) : (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800" title={res.error}>Failed</span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </CardContent>
+          <CardFooter>
+            <Button variant="outline" className="w-full" onClick={() => {
+              setStep(1);
+              setResults([]);
+              setPreview([]);
+              setColumns([]);
+            }}>Start New Batch</Button>
+          </CardFooter>
         </Card>
-      </div>
+      )}
     </div>
   );
 }
