@@ -2,7 +2,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 import os
 
-DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://mailforge:mailforgepassword@localhost:5432/mailforge")
+DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://mailforge:mailforgepassword@localhost:5433/mailforge")
 
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
