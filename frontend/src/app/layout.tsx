@@ -6,8 +6,8 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "MailForge Sender",
-  description: "Send personalized emails quickly.",
+  title: "extremis Sender",
+  description: "Send bulk emails",
 };
 
 export default function RootLayout({

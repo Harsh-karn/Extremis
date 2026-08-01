@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Rocket, UploadCloud, AlertCircle, CheckCircle2, Loader2, Send } from "lucide-react";
+import { UploadCloud, AlertCircle, CheckCircle2, Loader2, Send } from "lucide-react";
 
 export default function MailSenderWizard() {
   const [step, setStep] = useState(1);
@@ -129,8 +129,8 @@ export default function MailSenderWizard() {
     <div className="max-w-3xl mx-auto space-y-8">
       <div className="text-center space-y-2">
         <h1 className="text-4xl font-bold tracking-tight text-gray-900 flex justify-center items-center gap-3">
-          <Rocket className="h-8 w-8 text-blue-600" />
-          MailForge
+          <img src="/logo.png" alt="extremis logo" className="h-12 w-auto object-contain" />
+          extremis
         </h1>
         <p className="text-gray-500">Send personalized bulk emails directly from your Gmail.</p>
       </div>
