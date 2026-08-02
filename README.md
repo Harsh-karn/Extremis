@@ -1,7 +1,10 @@
-# Extremis
+# ✉️ Extremis
 
 A personal bulk-email tool for sending parameterized emails directly through Gmail SMTP.
+
 **Live Demo / Access:** [https://www.extremis.co.in](https://www.extremis.co.in)
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ## Table of Contents
 
@@ -30,7 +33,7 @@ Extremis is a specialized tool that lets you:
 
 There is currently no database persistence, no campaign history, and no async task queue.
 
-## How it works
+## ⚙️ How it works
 
 ```mermaid
 flowchart TD
@@ -41,7 +44,7 @@ flowchart TD
     E --> F[Trigger Send API]
     
     subgraph Send Loop
-    F --> G[Parse {{variables}}]
+    F --> G["Parse {{variables}}"]
     G --> H[Send via Gmail SMTP]
     H -. 1s delay .-> G
     end
@@ -209,10 +212,10 @@ The following features are planned but **not yet implemented**:
 - **Multi-Provider Support:** Adding adapters for SES, SendGrid, Mailgun, and Resend.
 - **Dashboard & Analytics:** A UI to view past campaigns, open rates, and bounce logs.
 
-## Contributing
+## 🤝 Contributing
 
 Contributions are welcome! Since this is primarily a personal tool, please open an issue first to discuss what you would like to change before submitting a Pull Request.
 
-## License
+## 📄 License
 
-*(License file not yet included in repository)*
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
