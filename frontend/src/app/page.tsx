@@ -6,7 +6,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { UploadCloud, AlertCircle, CheckCircle2, Loader2, Send, Eye, EyeOff, PlayCircle, Trash2, PauseCircle } from "lucide-react";
+import { Loader2, UploadCloud, CheckCircle2, PauseCircle, PlayCircle, Trash2, Eye, EyeOff, Send } from "lucide-react";
+import Papa from "papaparse";
+import * as XLSX from "xlsx";
 
 export default function MailSenderWizard() {
   const [step, setStep] = useState(1);
@@ -90,42 +92,78 @@ export default function MailSenderWizard() {
     setBody("");
   };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: any) => {
     if (!e.target.files || e.target.files.length === 0) return;
     const file = e.target.files[0];
     
     setLoading(true);
-    const formData = new FormData();
-    formData.append("file", file);
-
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
-      const apiKey = process.env.NEXT_PUBLIC_API_KEY || "";
-
-      const res = await fetch(`${apiUrl}/api/sender/parse-csv`, {
-        method: "POST",
-        headers: {
-            "X-API-Key": apiKey
-        },
-        body: formData,
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || "Failed to upload file");
-      
-      setColumns(data.columns);
-      setPreview(data.preview);
-      setAllRecords(data.all_rows);
-      setTotalRows(data.total_rows);
-      setSentEmails(new Set());
-      setHasActiveCampaign(false);
-      
-      // Auto-guess email column safely handling non-string column names
-      const guessedEmail = data.columns.find((c: any) => String(c).toLowerCase().includes("email"));
-      if (guessedEmail) setEmailColumn(String(guessedEmail));
-      
+      if (file.name.endsWith('.csv')) {
+        Papa.parse(file, {
+          header: true,
+          skipEmptyLines: true,
+          complete: (results) => {
+            const parsedData = results.data as any[];
+            const cols = results.meta.fields || [];
+            
+            setColumns(cols);
+            setAllRecords(parsedData);
+            setPreview(parsedData.slice(0, 5));
+            setTotalRows(parsedData.length);
+            setSentEmails(new Set());
+            setHasActiveCampaign(false);
+            
+            const guessedEmail = cols.find((c: string) => c.toLowerCase().includes("email"));
+            if (guessedEmail) setEmailColumn(guessedEmail);
+            
+            setLoading(false);
+          },
+          error: (err: any) => {
+            alert("Failed to parse CSV: " + err.message);
+            setLoading(false);
+          }
+        });
+      } else if (file.name.endsWith('.xls') || file.name.endsWith('.xlsx')) {
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+          try {
+            const bstr = evt.target?.result;
+            const wb = XLSX.read(bstr, { type: 'binary' });
+            const wsname = wb.SheetNames[0];
+            const ws = wb.Sheets[wsname];
+            const data = XLSX.utils.sheet_to_json(ws);
+            
+            if (data.length > 0) {
+              const cols = Object.keys(data[0] as object);
+              setColumns(cols);
+              setAllRecords(data);
+              setPreview(data.slice(0, 5));
+              setTotalRows(data.length);
+              setSentEmails(new Set());
+              setHasActiveCampaign(false);
+              
+              const guessedEmail = cols.find((c: string) => c.toLowerCase().includes("email"));
+              if (guessedEmail) setEmailColumn(guessedEmail);
+            } else {
+              alert("Excel file is empty");
+            }
+          } catch (err: any) {
+            alert("Failed to parse Excel: " + err.message);
+          } finally {
+            setLoading(false);
+          }
+        };
+        reader.onerror = () => {
+          alert("Failed to read file");
+          setLoading(false);
+        };
+        reader.readAsBinaryString(file);
+      } else {
+        alert("Unsupported file format. Please upload a .csv, .xls, or .xlsx file.");
+        setLoading(false);
+      }
     } catch (err: any) {
       alert(err.message);
-    } finally {
       setLoading(false);
     }
   };
@@ -136,88 +174,68 @@ export default function MailSenderWizard() {
       return;
     }
     
-    // Check pending records
     const pendingRecords = allRecords.filter(r => !sentEmails.has(r[emailColumn]));
     if (pendingRecords.length === 0) {
       alert("All emails in this campaign have already been sent!");
       return;
     }
     
-    // Batch up to 500 emails
     const batch = pendingRecords.slice(0, 500);
-
-    // Save initial state if starting
     saveCampaign();
 
     setIsSending(true);
     setResults([]);
+    abortControllerRef.current = new AbortController();
     
     try {
-      const payload = {
-        gmail_email: gmailEmail,
-        gmail_app_password: appPassword,
-        subject_template: subject,
-        body_template: body,
-        recipients: batch,
-        email_column: emailColumn
-      };
-      
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
-      const apiKey = process.env.NEXT_PUBLIC_API_KEY || "";
-      
-      abortControllerRef.current = new AbortController();
-      
-      const res = await fetch(`${apiUrl}/api/sender/send`, {
-        method: "POST",
-        headers: { 
-            "Content-Type": "application/json",
-            "X-API-Key": apiKey
-        },
-        body: JSON.stringify(payload),
-        signal: abortControllerRef.current.signal
-      });
-      
-      if (!res.ok) {
-          const data = await res.json();
-          throw new Error(data.detail || "Failed to send emails");
-      }
-
-      const reader = res.body?.getReader();
-      if (!reader) throw new Error("Stream not available");
-      
-      const decoder = new TextDecoder();
-      
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split('\n').filter(line => line.trim());
-        
-        for (const line of lines) {
-            try {
-                const data = JSON.parse(line);
-                if (data.error && !data.email) {
-                    throw new Error(data.error);
-                }
-                setResults(prev => [...prev, data]);
-                if (data.status === 'success') {
-                    setSentEmails(prev => {
-                        const next = new Set(prev);
-                        next.add(data.email);
-                        saveCampaign(next);
-                        return next;
-                    });
-                }
-            } catch (e: any) {
-                if (e.message !== "Unexpected end of JSON input") {
-                    throw e; 
-                }
-            }
+      for (const row of batch) {
+        if (abortControllerRef.current?.signal.aborted) {
+          throw new Error("AbortError");
         }
+        
+        const targetEmail = row[emailColumn];
+        if (!targetEmail) continue;
+
+        let parsedSubject = subject;
+        let parsedBody = body;
+        
+        for (const col of columns) {
+           const val = row[col] || "";
+           parsedSubject = parsedSubject.replace(new RegExp(`\\{\\{\\s*${col}\\s*\\}\\}`, 'gi'), String(val));
+           parsedBody = parsedBody.replace(new RegExp(`\\{\\{\\s*${col}\\s*\\}\\}`, 'gi'), String(val));
+        }
+
+        const res = await fetch('/api/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            gmail_email: gmailEmail,
+            gmail_app_password: appPassword,
+            subject: parsedSubject,
+            body: parsedBody,
+            to: targetEmail
+          }),
+          signal: abortControllerRef.current.signal
+        });
+
+        const data = await res.json();
+        
+        if (!res.ok) {
+           setResults(prev => [...prev, { email: targetEmail, status: 'failed', error: data.error || "Unknown error" }]);
+        } else {
+           setResults(prev => [...prev, { email: targetEmail, status: 'success' }]);
+           setSentEmails(prev => {
+              const next = new Set(prev);
+              next.add(targetEmail);
+              saveCampaign(next);
+              return next;
+           });
+        }
+        
+        await new Promise(r => setTimeout(r, 1000));
       }
       setStep(4);
-      setHasActiveCampaign(true); // show banner next time if incomplete
+      setHasActiveCampaign(true);
     } catch (err: any) {
       if (err.name === 'AbortError') {
         // Paused by user

@@ -37,16 +37,17 @@ There is currently no database persistence, no campaign history, and no async ta
 
 ```mermaid
 flowchart TD
-    A[Upload CSV/XLSX] --> B[Parse Data & Columns]
+    A[Upload CSV/XLSX] --> B[Parse Data & Columns in Browser]
     B --> C[Select Email Column]
     C --> D[Compose Subject & Body Templates]
     D --> E[Preview Merge Fields]
-    E --> F[Trigger Send API]
+    E --> F[Start Sending Batch]
     
     subgraph Send Loop
     F --> G["Parse {{variables}}"]
-    G --> H[Send via Gmail SMTP]
-    H -. 1s delay .-> G
+    G --> H[POST /api/send]
+    H --> I[Send via Gmail SMTP]
+    I -. 1s delay .-> G
     end
 ```
 
@@ -54,27 +55,19 @@ flowchart TD
 
 ```mermaid
 flowchart LR
-    A[Next.js Frontend] -->|POST /api/sender/send| B[FastAPI Backend]
-    B -->|SMTP port 587| C[Gmail SMTP Servers]
+    A[Next.js Client] -->|POST /api/send| B[Next.js Server]
+    B -->|SMTP port 465| C[Gmail SMTP Servers]
 ```
-
-*(Note: While a `docker-compose.yml` exists with PostgreSQL and Redis, they are not currently in the code path or required for the application to function.)*
 
 ## Tech stack
 
-**Backend**
-- Python 3
-- `fastapi[all]`
-- `pandas` and `openpyxl` (data parsing)
-- `slowapi==0.1.10` (rate limiting)
-- `python-multipart`
-
-**Frontend**
-- `next` (16.2.12)
+**Frontend & Backend (Fullstack)**
+- `next` (16.2.12 - App Router)
 - `react` and `react-dom` (19.2.4)
 - `tailwindcss` (^4)
-- `shadcn` (^4.16.1)
-- `lucide-react` (^1.28.0)
+- `shadcn/ui` (Components)
+- `papaparse` & `xlsx` (Client-side parsing)
+- `nodemailer` (Server-side SMTP)
 
 ## Screenshots
 
@@ -87,8 +80,7 @@ flowchart LR
 ## Getting started
 
 ### Requirements
-- Node.js (for frontend)
-- Python 3.8+ (for backend)
+- Node.js 18+
 - A Gmail account with 2-Factor Authentication enabled and an App Password generated.
 
 ### Local Setup
@@ -96,118 +88,55 @@ flowchart LR
 **1. Clone the repository**
 ```bash
 git clone https://github.com/Harsh-karn/Extremis.git
-cd Extremis
+cd Extremis/frontend
 ```
 
-**2. Start the Backend**
+**2. Install Dependencies**
 ```bash
-cd backend
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-pip install -r requirements.txt
-
-# Create a .env file based on environment requirements
-echo "API_KEY=your_secure_api_key_here" > .env
-echo "ALLOWED_ORIGINS=http://localhost:3000" >> .env
-
-# Run the FastAPI server
-uvicorn app.main:app --reload --port 8000
-```
-
-**3. Start the Frontend**
-```bash
-cd frontend
 npm install
+```
 
-# Create a .env.local file
-echo "NEXT_PUBLIC_API_URL=http://localhost:8000" > .env.local
-echo "NEXT_PUBLIC_API_KEY=your_secure_api_key_here" >> .env.local
-
-# Run Next.js
+**3. Start the application**
+```bash
 npm run dev
 ```
-
-### Docker Compose
-A `docker-compose.yml` file is provided, which currently spins up PostgreSQL and Redis instances (for future roadmap use). To start them:
-```bash
-docker-compose up -d
-```
-
-## Usage walkthrough
-
-**1. Prepare your data**
-Create a file named `contacts.csv`:
-```csv
-Email,FirstName,Discount
-user@example.com,Alice,20%
-test@example.com,Bob,15%
-```
-
-**2. Follow the UI flow**
-1. Open the frontend and upload `contacts.csv`.
-2. The UI will detect `Email`, `FirstName`, and `Discount`. Select `Email` as the target email column.
-3. In the template composer, write your subject and body:
-   - **Subject:** `Hey {{FirstName}}, here is your code!`
-   - **Body:** `Enjoy {{Discount}} off your next purchase.`
-4. View the preview to confirm it renders as: *"Hey Alice, here is your code!"*
-5. Input your Gmail address and App Password, then click **Send**.
+Open [http://localhost:3000](http://localhost:3000).
 
 ## API reference
 
-All endpoints are prefixed with `/api/sender` and require the `X-API-Key` header.
-
-### 1. Parse CSV/Excel
-- **Endpoint:** `POST /parse-csv`
-- **Rate Limit:** 20 requests per minute per IP.
-- **Payload:** `multipart/form-data` containing a `file` field.
-
-**Example Request:**
-```bash
-curl -X POST http://localhost:8000/api/sender/parse-csv \
-  -H "X-API-Key: your_secure_api_key_here" \
-  -F "file=@contacts.csv"
-```
-
-### 2. Send Emails
-- **Endpoint:** `POST /send`
-- **Rate Limit:** 5 requests per minute per IP.
+### Send Email
+- **Endpoint:** `POST /api/send`
 - **Payload:** JSON body.
 
 **Example Request:**
 ```bash
-curl -X POST http://localhost:8000/api/sender/send \
-  -H "X-API-Key: your_secure_api_key_here" \
+curl -X POST http://localhost:3000/api/send \
   -H "Content-Type: application/json" \
   -d '{
     "gmail_email": "you@gmail.com",
     "gmail_app_password": "your_app_password",
-    "subject_template": "Hello {{FirstName}}",
-    "body_template": "Your discount is {{Discount}}.",
-    "email_column": "Email",
-    "recipients": [
-      {"Email": "user@example.com", "FirstName": "Alice", "Discount": "20%"}
-    ]
+    "subject": "Hello Alice",
+    "body": "Your discount is 20%.",
+    "to": "user@example.com"
   }'
 ```
-**Response:** Streams NDJSON (`application/x-ndjson`) showing per-email success or failure.
+**Response:** JSON indicating success or failure.
 
 ## Security
 
 Extremis is a **personal-use tool**, not a multi-tenant SaaS. 
-- **Authentication:** All backend routes are protected by a static `X-API-Key` header. It is highly recommended to place this backend behind a reverse proxy that provides HTTPS and optionally Basic Auth.
-- **Rate Limiting:** IP-based rate limiting (via `slowapi`) is enforced to prevent abuse.
 - **Credentials:** Gmail App Passwords are submitted dynamically per request. They are used in memory to establish the SMTP connection and are never saved to a database or written to disk.
+- **Client-Side Parsing:** CSV and Excel files are parsed securely in your browser. Contact lists are never uploaded to any server.
 
 ## Deployment
 
-The current recommended deployment architecture is:
-- **Frontend:** Hosted on Vercel. Connect the GitHub repository directly to Vercel and supply the `NEXT_PUBLIC_API_URL` and `NEXT_PUBLIC_API_KEY` environment variables.
-- **Backend:** Hosted on a VPS (e.g., Render, Railway, or standard Linux server). Ensure `ALLOWED_ORIGINS` includes your Vercel domain and `API_KEY` matches the frontend.
+The recommended deployment architecture is:
+- **Vercel:** Connect the GitHub repository directly to Vercel. 
+- Vercel's free tier allows outgoing SMTP connections on port 465 and 587, making it a 100% free hosting solution for this tool without needing a separate backend server.
 
 ## Roadmap
 
 The following features are planned but **not yet implemented**:
-- **Async Task Queue:** Utilizing Celery and Redis to decouple email sending from the HTTP request cycle.
 - **Database Persistence:** Using PostgreSQL to store campaign history, templates, and recipient logs.
 - **Multi-Provider Support:** Adding adapters for SES, SendGrid, Mailgun, and Resend.
 - **Dashboard & Analytics:** A UI to view past campaigns, open rates, and bounce logs.

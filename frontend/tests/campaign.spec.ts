@@ -33,16 +33,11 @@ test.describe('Campaign Workflow E2E', () => {
     // The preview is shown on the same page at the bottom
     await expect(page.getByText('Hello Alice')).toBeVisible(); // Interpolated from row 1
     
-    // 6. Start Batch and verify API error is handled
-    
-    // Set up dialog handler to catch the alert
-    const dialogPromise = page.waitForEvent('dialog');
-    
+    // 6. Start Batch and verify API error is handled gracefully
     await page.getByRole('button', { name: 'Start Sending Batch' }).click();
 
-    // Verify it fails and shows an alert because the credentials are fake
-    const dialog = await dialogPromise;
-    expect(dialog.message()).toContain('Failed to authenticate'); 
-    await dialog.dismiss();
+    // Verify it transitions to Step 4 (Results) and shows failure
+    await expect(page.getByText('Batch Complete!')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('text=Failed').first()).toBeVisible();
   });
 });
