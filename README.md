@@ -50,12 +50,12 @@ flowchart TD
     end
 ```
 
-## Architecture
+## 🏗️ Architecture
 
 ```mermaid
 flowchart LR
-    A[Next.js Frontend] -- POST /api/sender/send --> B[FastAPI Backend]
-    B -- SMTP (port 587) --> C[Gmail SMTP Servers]
+    A[Next.js Frontend] -->|POST /api/sender/send| B[FastAPI Backend]
+    B -->|SMTP port 587| C[Gmail SMTP Servers]
 ```
 
 *(Note: While a `docker-compose.yml` exists with PostgreSQL and Redis, they are not currently in the code path or required for the application to function.)*
