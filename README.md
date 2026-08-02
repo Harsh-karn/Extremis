@@ -96,23 +96,11 @@ cd Extremis/frontend
 npm install
 ```
 
-**3. Set up Environment Variables**
-Create a `.env.local` file and set the basic authentication credentials.
-
-> [!CAUTION]
-> **MANDATORY SECURITY STEP**
-> This application is protected by a Basic Auth layer to prevent public access and protect against security scanners. You MUST set the following environment variables (both locally and in Vercel):
-
-```bash
-BASIC_AUTH_USER=admin
-BASIC_AUTH_PASSWORD=your_secure_password
-```
-
-**4. Start the application**
+**3. Start the application**
 ```bash
 npm run dev
 ```
-Open [http://localhost:3000](http://localhost:3000) (Login with the credentials you set above).
+Open [http://localhost:3000](http://localhost:3000).
 
 ## API reference
 
@@ -145,10 +133,6 @@ Extremis is a **personal-use tool**, not a multi-tenant SaaS.
 The recommended deployment architecture is:
 - **Vercel:** Connect the GitHub repository directly to Vercel. 
 - Vercel's free tier allows outgoing SMTP connections on port 465 and 587, making it a 100% free hosting solution for this tool without needing a separate backend server.
-
-> [!CAUTION]
-> **Vercel Environment Variables Required**
-> After connecting your repository to Vercel, you MUST navigate to **Settings > Environment Variables** and add `BASIC_AUTH_USER` and `BASIC_AUTH_PASSWORD`. Your site will not be accessible until these are configured.
 
 ## Roadmap
 
