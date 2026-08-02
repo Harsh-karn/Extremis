@@ -72,10 +72,17 @@ async def send_emails(request: Request, payload: SendEmailRequest):
             clean_email = payload.gmail_email.strip()
             clean_password = payload.gmail_app_password.replace('\\xa0', '').replace(' ', '').strip()
             
-            # Add a timeout so it doesn't hang indefinitely if port 587 is blocked
-            server = smtplib.SMTP('smtp.gmail.com', 587, timeout=10)
-            server.starttls()
-            server.login(clean_email, clean_password)
+            # Try Port 587 (TLS)
+            try:
+                server = smtplib.SMTP('smtp.gmail.com', 587, timeout=10)
+                server.starttls()
+                server.login(clean_email, clean_password)
+            except Exception as e:
+                logger.warning(f"Port 587 failed ({e}), trying Port 465 (SSL)...")
+                # Try Port 465 (SSL) as fallback
+                server = smtplib.SMTP_SSL('smtp.gmail.com', 465, timeout=10)
+                server.login(clean_email, clean_password)
+                
         except Exception as e:
             logger.error(f"Gmail authentication failed for {payload.gmail_email}: {e}")
             yield json.dumps({"error": f"Failed to authenticate with Gmail: {str(e)}"}) + "\n"
