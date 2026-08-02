@@ -232,7 +232,7 @@ export default function MailSenderWizard() {
   };
 
   return (
-    <div className="max-w-3xl mx-auto space-y-8">
+    <div className="max-w-3xl mx-auto space-y-8 px-4 sm:px-6 py-6 sm:py-10">
       <div className="text-center space-y-2">
         <h1 className="text-4xl font-bold tracking-tight text-gray-900 flex justify-center items-center gap-3">
           <img src="/logo.png" alt="extremis logo" className="h-12 w-auto object-contain" />
@@ -242,7 +242,7 @@ export default function MailSenderWizard() {
       </div>
 
       {hasActiveCampaign && step === 1 && (
-        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-8 flex justify-between items-center animate-in fade-in slide-in-from-top-4">
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-8 flex flex-col sm:flex-row gap-4 sm:gap-0 justify-between sm:items-center animate-in fade-in slide-in-from-top-4">
           <div>
             <h3 className="font-medium text-amber-800">You have a paused campaign</h3>
             <p className="text-sm text-amber-700">{sentEmails.size} out of {totalRows} emails sent.</p>
@@ -267,15 +267,15 @@ export default function MailSenderWizard() {
       )}
 
       {/* Progress Steps */}
-      <div className="flex justify-between items-center px-8 text-sm font-medium mb-8">
+      <div className="flex justify-between items-center px-2 sm:px-8 text-xs sm:text-sm font-medium mb-8">
         {[1, 2, 3, 4].map((s) => (
-          <div key={s} className="flex items-center">
-            <div className={`h-8 w-8 rounded-full flex items-center justify-center border-2 ${
+          <div key={s} className="flex items-center flex-1 last:flex-none">
+            <div className={`h-6 w-6 sm:h-8 sm:w-8 rounded-full flex shrink-0 items-center justify-center border-2 ${
               step >= s ? "border-blue-600 bg-blue-600 text-white" : "border-gray-300 text-gray-400"
             }`}>
               {s}
             </div>
-            {s < 4 && <div className={`w-24 h-1 mx-2 rounded ${step > s ? "bg-blue-600" : "bg-gray-200"}`} />}
+            {s < 4 && <div className={`flex-1 min-w-[10px] h-1 mx-1 sm:mx-2 rounded ${step > s ? "bg-blue-600" : "bg-gray-200"}`} />}
           </div>
         ))}
       </div>
@@ -315,7 +315,7 @@ export default function MailSenderWizard() {
             </div>
           </CardContent>
           <CardFooter className="flex justify-end">
-            <Button onClick={() => setStep(2)} disabled={!gmailEmail || !appPassword}>Next Step</Button>
+            <Button className="w-full sm:w-auto" onClick={() => setStep(2)} disabled={!gmailEmail || !appPassword}>Next Step</Button>
           </CardFooter>
         </Card>
       )}
@@ -328,7 +328,7 @@ export default function MailSenderWizard() {
             <CardDescription>Upload an Excel or CSV file containing your recipients.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            <div className="border-2 border-dashed border-gray-200 rounded-lg p-10 flex flex-col items-center justify-center bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer relative">
+            <div className="border-2 border-dashed border-gray-200 rounded-lg p-6 sm:p-10 flex flex-col items-center justify-center bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer relative">
               <input type="file" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" accept=".csv,.xlsx,.xls" onChange={handleFileUpload} />
               {loading ? (
                 <Loader2 className="h-10 w-10 text-gray-400 animate-spin mb-4" />
@@ -374,9 +374,9 @@ export default function MailSenderWizard() {
               </div>
             )}
           </CardContent>
-          <CardFooter className="flex justify-between">
-            <Button variant="outline" onClick={() => setStep(1)}>Back</Button>
-            <Button onClick={() => setStep(3)} disabled={columns.length === 0 || !emailColumn}>Next Step</Button>
+          <CardFooter className="flex flex-col-reverse sm:flex-row gap-3 sm:gap-0 justify-between sm:items-center">
+            <Button className="w-full sm:w-auto" variant="outline" onClick={() => setStep(1)}>Back</Button>
+            <Button className="w-full sm:w-auto" onClick={() => setStep(3)} disabled={columns.length === 0 || !emailColumn}>Next Step</Button>
           </CardFooter>
         </Card>
       )}
@@ -436,9 +436,9 @@ export default function MailSenderWizard() {
               )}
             </div>
           </CardContent>
-          <CardFooter className="flex justify-between items-center">
-            <Button variant="outline" onClick={() => setStep(hasActiveCampaign ? 1 : 2)}>Back</Button>
-            <div className="flex items-center gap-4">
+          <CardFooter className="flex flex-col-reverse sm:flex-row gap-4 sm:gap-0 justify-between sm:items-center">
+            <Button className="w-full sm:w-auto" variant="outline" onClick={() => setStep(hasActiveCampaign ? 1 : 2)}>Back</Button>
+            <div className="flex flex-col sm:flex-row w-full sm:w-auto items-stretch sm:items-center gap-4">
               {isSending && (
                 <div className="text-sm font-medium text-blue-600 bg-blue-50 px-3 py-1.5 rounded-full border border-blue-100">
                   Batch {results.length} / {Math.min(500, allRecords.length - sentEmails.size)}
