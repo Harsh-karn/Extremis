@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { UploadCloud, AlertCircle, CheckCircle2, Loader2, Send, Eye, EyeOff, PlayCircle, Trash2 } from "lucide-react";
+import { UploadCloud, AlertCircle, CheckCircle2, Loader2, Send, Eye, EyeOff, PlayCircle, Trash2, PauseCircle } from "lucide-react";
 
 export default function MailSenderWizard() {
   const [step, setStep] = useState(1);
@@ -33,6 +33,7 @@ export default function MailSenderWizard() {
   // Results State
   const [results, setResults] = useState<any[]>([]);
   const [isSending, setIsSending] = useState(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   // Load from local storage
   useEffect(() => {
@@ -159,13 +160,16 @@ export default function MailSenderWizard() {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
       const apiKey = process.env.NEXT_PUBLIC_API_KEY || "";
       
+      abortControllerRef.current = new AbortController();
+      
       const res = await fetch(`${apiUrl}/api/sender/send`, {
         method: "POST",
         headers: { 
             "Content-Type": "application/json",
             "X-API-Key": apiKey
         },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
+        signal: abortControllerRef.current.signal
       });
       
       if (!res.ok) {
@@ -210,7 +214,13 @@ export default function MailSenderWizard() {
       setStep(4);
       setHasActiveCampaign(true); // show banner next time if incomplete
     } catch (err: any) {
-      alert(err.message);
+      if (err.name === 'AbortError') {
+        // Paused by user
+        setStep(4);
+        setHasActiveCampaign(true);
+      } else {
+        alert(err.message);
+      }
     } finally {
       setIsSending(false);
     }
@@ -429,13 +439,15 @@ export default function MailSenderWizard() {
                   Batch {results.length} / {Math.min(500, allRecords.length - sentEmails.size)}
                 </div>
               )}
-              <Button onClick={handleSend} disabled={!subject || !body || isSending} className="min-w-[150px]">
-                {isSending ? (
-                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Sending...</>
-                ) : (
-                  <><Send className="mr-2 h-4 w-4" /> Start Sending Batch</>
-                )}
-              </Button>
+              {isSending ? (
+                <Button onClick={() => abortControllerRef.current?.abort()} variant="destructive" className="min-w-[150px]">
+                  <PauseCircle className="mr-2 h-4 w-4" /> Pause
+                </Button>
+              ) : (
+                <Button onClick={handleSend} disabled={!subject || !body || isSending} className="min-w-[150px]">
+                  <Send className="mr-2 h-4 w-4" /> Start Sending Batch
+                </Button>
+              )}
             </div>
           </CardFooter>
         </Card>
