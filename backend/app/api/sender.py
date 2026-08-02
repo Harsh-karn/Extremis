@@ -7,6 +7,15 @@ import io
 import re
 import time
 import logging
+import socket
+
+# Force IPv4 to prevent "Network is unreachable" errors in environments with broken IPv6
+old_getaddrinfo = socket.getaddrinfo
+def getaddrinfo_ipv4(*args, **kwargs):
+    responses = old_getaddrinfo(*args, **kwargs)
+    return [res for res in responses if res[0] == socket.AF_INET]
+socket.getaddrinfo = getaddrinfo_ipv4
+
 from ..core.security import get_api_key
 from ..core.rate_limit import limiter
 
