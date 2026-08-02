@@ -96,11 +96,18 @@ cd Extremis/frontend
 npm install
 ```
 
-**3. Start the application**
+**3. Set up Environment Variables**
+Create a `.env.local` file and set the basic authentication credentials to protect the site from public access.
+```bash
+BASIC_AUTH_USER=admin
+BASIC_AUTH_PASSWORD=your_secure_password
+```
+
+**4. Start the application**
 ```bash
 npm run dev
 ```
-Open [http://localhost:3000](http://localhost:3000).
+Open [http://localhost:3000](http://localhost:3000) (Login with the credentials you set above).
 
 ## API reference
 

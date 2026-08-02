@@ -14,6 +14,10 @@ export default defineConfig({
   use: {
     baseURL: 'http://localhost:3000',
     trace: 'on-first-retry',
+    httpCredentials: {
+      username: process.env.BASIC_AUTH_USER || 'admin',
+      password: process.env.BASIC_AUTH_PASSWORD || 'password',
+    },
   },
   projects: [
     {
