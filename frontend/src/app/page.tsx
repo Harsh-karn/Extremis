@@ -43,6 +43,11 @@ export default function MailSenderWizard() {
         const data = JSON.parse(saved);
         setGmailEmail(data.gmailEmail || "");
         setAllRecords(data.allRecords || []);
+        
+        if (data.allRecords && data.allRecords.length > 0) {
+          setPreview(data.allRecords.slice(0, 5));
+        }
+        
         setColumns(data.columns || []);
         setEmailColumn(data.emailColumn || "");
         setSubject(data.subject || "");

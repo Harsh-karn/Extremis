@@ -63,7 +63,8 @@ async def send_emails(request: Request, payload: SendEmailRequest):
             clean_email = payload.gmail_email.strip()
             clean_password = payload.gmail_app_password.replace('\\xa0', '').replace(' ', '').strip()
             
-            server = smtplib.SMTP('smtp.gmail.com', 587)
+            # Add a timeout so it doesn't hang indefinitely if port 587 is blocked
+            server = smtplib.SMTP('smtp.gmail.com', 587, timeout=10)
             server.starttls()
             server.login(clean_email, clean_password)
         except Exception as e:
