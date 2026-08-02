@@ -1,4 +1,4 @@
-# ✉️ Extremis
+# ✉️ Extremis - MailForge
 
 A personal bulk-email tool for sending parameterized emails directly through Gmail SMTP.
 
