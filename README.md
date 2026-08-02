@@ -12,14 +12,13 @@ A personal bulk-email tool for sending parameterized emails directly through Gma
 2. [How it works](#how-it-works)
 3. [Architecture](#architecture)
 4. [Tech stack](#tech-stack)
-5. [Screenshots](#screenshots)
-6. [Getting started](#getting-started)
-7. [Usage walkthrough](#usage-walkthrough)
-8. [API reference](#api-reference)
-9. [Security](#security)
-10. [Deployment](#deployment)
-11. [Roadmap](#roadmap)
-12. [License](#license)
+5. [Getting started](#getting-started)
+6. [Usage walkthrough](#usage-walkthrough)
+7. [API reference](#api-reference)
+8. [Security](#security)
+9. [Deployment](#deployment)
+10. [Roadmap](#roadmap)
+11. [License](#license)
 
 ## What it does
 
@@ -68,14 +67,6 @@ flowchart LR
 - `shadcn/ui` (Components)
 - `papaparse` & `xlsx` (Client-side parsing)
 - `nodemailer` (Server-side SMTP)
-
-## Screenshots
-
-*(Place screenshots in `docs/screenshots/` and link them here)*
-
-- **Upload & Column Mapping:** `![Upload Step](docs/screenshots/upload.png)`
-- **Template Composition:** `![Compose Step](docs/screenshots/compose.png)`
-- **Sending Progress:** `![Sending Step](docs/screenshots/sending.png)`
 
 ## Getting started
 
