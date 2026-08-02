@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { UploadCloud, AlertCircle, CheckCircle2, Loader2, Send, Eye, EyeOff } from "lucide-react";
+import { UploadCloud, AlertCircle, CheckCircle2, Loader2, Send, Eye, EyeOff, PlayCircle, Trash2 } from "lucide-react";
 
 export default function MailSenderWizard() {
   const [step, setStep] = useState(1);
@@ -26,9 +26,63 @@ export default function MailSenderWizard() {
   const [allRecords, setAllRecords] = useState<any[]>([]);
   const [totalRows, setTotalRows] = useState(0);
   
+  // Batching State
+  const [sentEmails, setSentEmails] = useState<Set<string>>(new Set());
+  const [hasActiveCampaign, setHasActiveCampaign] = useState(false);
+
   // Results State
   const [results, setResults] = useState<any[]>([]);
   const [isSending, setIsSending] = useState(false);
+
+  // Load from local storage
+  useEffect(() => {
+    const saved = localStorage.getItem('mailforge_campaign');
+    if (saved) {
+      try {
+        const data = JSON.parse(saved);
+        setGmailEmail(data.gmailEmail || "");
+        setAllRecords(data.allRecords || []);
+        setColumns(data.columns || []);
+        setEmailColumn(data.emailColumn || "");
+        setSubject(data.subject || "");
+        setBody(data.body || "");
+        setSentEmails(new Set(data.sentEmails || []));
+        setTotalRows(data.allRecords?.length || 0);
+        
+        if (data.allRecords?.length > 0 && data.sentEmails?.length < data.allRecords?.length) {
+          setHasActiveCampaign(true);
+        }
+      } catch (e) {
+        console.error("Failed to load campaign", e);
+      }
+    }
+  }, []);
+
+  const saveCampaign = (newSentEmails?: Set<string>) => {
+    const emailsToSave = newSentEmails || sentEmails;
+    const data = {
+      gmailEmail,
+      allRecords,
+      columns,
+      emailColumn,
+      subject,
+      body,
+      sentEmails: Array.from(emailsToSave)
+    };
+    localStorage.setItem('mailforge_campaign', JSON.stringify(data));
+  };
+
+  const clearCampaign = () => {
+    localStorage.removeItem('mailforge_campaign');
+    setHasActiveCampaign(false);
+    setAllRecords([]);
+    setTotalRows(0);
+    setSentEmails(new Set());
+    setPreview([]);
+    setColumns([]);
+    setSubject("");
+    setBody("");
+  };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0) return;
@@ -56,6 +110,8 @@ export default function MailSenderWizard() {
       setPreview(data.preview);
       setAllRecords(data.all_rows);
       setTotalRows(data.total_rows);
+      setSentEmails(new Set());
+      setHasActiveCampaign(false);
       
       // Auto-guess email column safely handling non-string column names
       const guessedEmail = data.columns.find((c: any) => String(c).toLowerCase().includes("email"));
@@ -69,11 +125,24 @@ export default function MailSenderWizard() {
   };
 
   const handleSend = async () => {
-    if (!gmailEmail || !appPassword || !emailColumn || !subject || !body || preview.length === 0) {
+    if (!gmailEmail || !appPassword || !emailColumn || !subject || !body || allRecords.length === 0) {
       alert("Please fill out all fields.");
       return;
     }
     
+    // Check pending records
+    const pendingRecords = allRecords.filter(r => !sentEmails.has(r[emailColumn]));
+    if (pendingRecords.length === 0) {
+      alert("All emails in this campaign have already been sent!");
+      return;
+    }
+    
+    // Batch up to 500 emails
+    const batch = pendingRecords.slice(0, 500);
+
+    // Save initial state if starting
+    saveCampaign();
+
     setIsSending(true);
     setResults([]);
     
@@ -83,7 +152,7 @@ export default function MailSenderWizard() {
         gmail_app_password: appPassword,
         subject_template: subject,
         body_template: body,
-        recipients: allRecords, // Sending all records
+        recipients: batch,
         email_column: emailColumn
       };
       
@@ -114,7 +183,7 @@ export default function MailSenderWizard() {
         if (done) break;
         
         const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split('\\n').filter(line => line.trim());
+        const lines = chunk.split('\n').filter(line => line.trim());
         
         for (const line of lines) {
             try {
@@ -123,14 +192,23 @@ export default function MailSenderWizard() {
                     throw new Error(data.error);
                 }
                 setResults(prev => [...prev, data]);
+                if (data.status === 'success') {
+                    setSentEmails(prev => {
+                        const next = new Set(prev);
+                        next.add(data.email);
+                        saveCampaign(next);
+                        return next;
+                    });
+                }
             } catch (e: any) {
                 if (e.message !== "Unexpected end of JSON input") {
-                    throw e; // If it's the auth error, throw it. 
+                    throw e; 
                 }
             }
         }
       }
       setStep(4);
+      setHasActiveCampaign(true); // show banner next time if incomplete
     } catch (err: any) {
       alert(err.message);
     } finally {
@@ -147,6 +225,31 @@ export default function MailSenderWizard() {
         </h1>
         <p className="text-gray-500">Send personalized bulk emails directly from your Gmail.</p>
       </div>
+
+      {hasActiveCampaign && step === 1 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-8 flex justify-between items-center animate-in fade-in slide-in-from-top-4">
+          <div>
+            <h3 className="font-medium text-amber-800">You have a paused campaign</h3>
+            <p className="text-sm text-amber-700">{sentEmails.size} out of {totalRows} emails sent.</p>
+          </div>
+          <div className="space-x-3 flex">
+             <Button variant="outline" className="border-amber-300 text-amber-800 hover:bg-amber-100" onClick={clearCampaign}>
+               <Trash2 className="h-4 w-4 mr-2"/> Clear 
+             </Button>
+             <Button 
+               onClick={() => {
+                 if (!appPassword) { alert("Please enter your App Password below before resuming."); return; }
+                 const pending = allRecords.filter(r => !sentEmails.has(r[emailColumn]));
+                 if (pending.length > 0) setPreview([pending[0]]);
+                 setStep(3);
+               }} 
+               className="bg-amber-600 hover:bg-amber-700 text-white"
+             >
+               <PlayCircle className="h-4 w-4 mr-2"/> Resume
+             </Button>
+          </div>
+        </div>
+      )}
 
       {/* Progress Steps */}
       <div className="flex justify-between items-center px-8 text-sm font-medium mb-8">
@@ -305,7 +408,7 @@ export default function MailSenderWizard() {
             </div>
             
             <div className="bg-blue-50 p-4 rounded-lg border border-blue-100 mt-4">
-              <h4 className="text-sm font-semibold text-blue-900 mb-2">Preview (Row 1)</h4>
+              <h4 className="text-sm font-semibold text-blue-900 mb-2">Preview (Next Recipient)</h4>
               {preview.length > 0 && (
                 <div className="text-sm text-blue-800 bg-white p-3 rounded border border-blue-100 whitespace-pre-wrap">
                   <div className="font-medium border-b border-blue-100 pb-2 mb-2">
@@ -319,18 +422,18 @@ export default function MailSenderWizard() {
             </div>
           </CardContent>
           <CardFooter className="flex justify-between items-center">
-            <Button variant="outline" onClick={() => setStep(2)}>Back</Button>
+            <Button variant="outline" onClick={() => setStep(hasActiveCampaign ? 1 : 2)}>Back</Button>
             <div className="flex items-center gap-4">
               {isSending && (
                 <div className="text-sm font-medium text-blue-600 bg-blue-50 px-3 py-1.5 rounded-full border border-blue-100">
-                  Sent {results.length} / {totalRows}
+                  Batch {results.length} / {Math.min(500, allRecords.length - sentEmails.size)}
                 </div>
               )}
               <Button onClick={handleSend} disabled={!subject || !body || isSending} className="min-w-[150px]">
                 {isSending ? (
                   <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Sending...</>
                 ) : (
-                  <><Send className="mr-2 h-4 w-4" /> Start Sending</>
+                  <><Send className="mr-2 h-4 w-4" /> Start Sending Batch</>
                 )}
               </Button>
             </div>
@@ -345,8 +448,13 @@ export default function MailSenderWizard() {
             <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center mb-4">
               <CheckCircle2 className="h-6 w-6 text-green-600" />
             </div>
-            <CardTitle>Sending Complete</CardTitle>
-            <CardDescription>Your emails have been processed.</CardDescription>
+            <CardTitle>{sentEmails.size >= totalRows ? "Campaign Complete!" : "Batch Complete!"}</CardTitle>
+            <CardDescription>
+              {sentEmails.size >= totalRows 
+                ? "All emails in your campaign have been sent." 
+                : `You've sent ${sentEmails.size} of ${totalRows} total emails. Return tomorrow to send the next batch!`
+              }
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
@@ -369,14 +477,37 @@ export default function MailSenderWizard() {
                 ))}
               </div>
             </div>
+            
+            {/* Overall Progress Bar */}
+            <div className="mt-6 space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="font-medium text-gray-700">Overall Campaign Progress</span>
+                <span className="font-medium text-gray-700">{sentEmails.size} / {totalRows}</span>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2.5">
+                <div className="bg-blue-600 h-2.5 rounded-full transition-all duration-500" style={{ width: `${Math.min(100, (sentEmails.size / totalRows) * 100)}%` }}></div>
+              </div>
+            </div>
+            
           </CardContent>
-          <CardFooter>
-            <Button variant="outline" className="w-full" onClick={() => {
-              setStep(1);
-              setResults([]);
-              setPreview([]);
-              setColumns([]);
-            }}>Start New Batch</Button>
+          <CardFooter className="flex justify-between mt-4">
+            {sentEmails.size < totalRows ? (
+              <>
+                 <Button variant="outline" onClick={() => {
+                   setStep(1);
+                   setResults([]);
+                 }}>Pause for Today</Button>
+                 <Button variant="destructive" onClick={() => {
+                   clearCampaign();
+                   setStep(1);
+                 }}>Clear Campaign</Button>
+              </>
+            ) : (
+              <Button variant="outline" className="w-full" onClick={() => {
+                clearCampaign();
+                setStep(1);
+              }}>Start New Campaign</Button>
+            )}
           </CardFooter>
         </Card>
       )}
